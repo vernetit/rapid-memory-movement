@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memoria rápida móvil v12 — modo foco</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a31; --panel2:#18213b; --txt:#eef3ff; --muted:#94a3b8;
+      --line:#2c365f; --good:#74f78e; --bad:#ff6b6b; --warn:#ffd166; --accent:#80b7ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(circle at top,#172344,#0b1020 55%,#070b15);color:var(--txt)}
+    .app{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto}
+    header{padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(12,18,35,.92);position:sticky;top:0;z-index:10;backdrop-filter:blur(8px)}
+    h1{font-size:18px;margin:0 0 8px 0;letter-spacing:.2px}.small{font-size:12px;color:var(--muted)}
+    .controls{display:grid;grid-template-columns:repeat(12,minmax(70px,1fr));gap:8px;align-items:end}
+    label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+    input,select,button,textarea{font:inherit;border:1px solid var(--line);background:var(--panel2);color:var(--txt);border-radius:10px;padding:8px;outline:none}
+    input[type="range"]{padding:0}input[type="checkbox"]{width:18px;height:18px;accent-color:#80b7ff}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{cursor:pointer;font-weight:700;background:linear-gradient(180deg,#24345e,#18213b);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+    .stageWrap.placing{cursor:crosshair;box-shadow:inset 0 0 0 2px var(--accent), inset 0 0 50px rgba(128,183,255,.14)}button:hover{filter:brightness(1.12)}button:active{transform:translateY(1px);box-shadow:none}.primary{background:linear-gradient(180deg,#2d70d6,#1d4f9e)}.danger{background:linear-gradient(180deg,#8f2d38,#5e1d27)}
+    .wide{grid-column:span 2}.xwide{grid-column:span 3}.checkline{flex-direction:row;align-items:center;color:var(--txt)}
+    main{display:grid;grid-template-columns:1fr 330px;gap:10px;padding:10px;min-height:0}.stageWrap{position:relative;min-height:450px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#f8fafc;color:#111827;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+    body.darkStage .stageWrap{background:#050816;color:#eef3ff}.hud{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;justify-content:space-between;pointer-events:none;color:inherit;font-weight:700;text-shadow:0 1px 8px rgba(0,0,0,.25)}
+    canvas{display:block;width:100%;height:100%}.side{border:1px solid var(--line);border-radius:18px;background:rgba(18,26,49,.92);padding:12px;overflow:auto}.side h2{font-size:15px;margin:0 0 8px}.answer{width:100%;min-height:86px;resize:vertical;font-size:20px;letter-spacing:3px}.result{padding:10px;border-radius:12px;background:rgba(255,255,255,.04);min-height:62px;white-space:pre-wrap}.stats{font-size:13px;color:var(--muted);line-height:1.55}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:rgba(255,255,255,.04);border-radius:999px;padding:4px 8px;margin:2px;color:var(--muted);font-size:12px}.kbd{font-family:ui-monospace,monospace;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:6px;padding:1px 5px;color:var(--txt)}
+
+    .mapAnswerLayer{position:absolute;inset:0;pointer-events:none;z-index:4}
+    .mapInput{position:absolute;transform:translate(-50%,-50%);width:54px;min-width:42px;text-align:center;font-weight:900;font-size:18px;letter-spacing:1px;padding:6px 4px;border-radius:10px;border:2px solid rgba(128,183,255,.85);background:rgba(248,250,252,.93);color:#111827;box-shadow:0 5px 16px rgba(0,0,0,.25);pointer-events:auto}
+    .mapInput:focus{border-color:#ffd166;box-shadow:0 0 0 4px rgba(255,209,102,.22),0 5px 16px rgba(0,0,0,.25)}
+    .mapInput.good{border-color:#15b84a;background:rgba(116,247,142,.92);color:#06270f}
+    .mapInput.bad{border-color:#e11d48;background:rgba(255,107,107,.93);color:#310711}
+    .mapInput.emptyBad{border-style:dashed}
+    body.darkStage .mapInput{background:rgba(18,26,49,.94);color:#eef3ff}
+    body.darkStage .mapInput.good{background:rgba(21,184,74,.92);color:#021b09}
+    body.darkStage .mapInput.bad{background:rgba(225,29,72,.92);color:#fff}
+    footer{padding:8px 12px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+    @media(max-width:920px){.controls{grid-template-columns:repeat(2,1fr)}.wide,.xwide{grid-column:span 1}main{grid-template-columns:1fr}.side{max-height:none}.stageWrap{min-height:58vh}}
+  
+    .focusToggle{position:fixed;top:10px;right:10px;z-index:30;border:1px solid var(--line);background:rgba(18,26,49,.92);color:var(--txt);padding:10px 12px;border-radius:12px;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.28)}
+    .focusToggle:hover{filter:brightness(1.08)}
+    body.focusMode header h1, body.focusMode .controls, body.focusMode .side, body.focusMode footer{display:none !important}
+    body.focusMode header{display:none}
+    body.focusMode main{grid-template-columns:1fr;padding:0;gap:0;min-height:100vh}
+    body.focusMode .stageWrap{min-height:100vh;border-radius:0;border:none}
+    body.focusMode .hud{top:14px;left:14px;right:64px}
+    body.focusMode .mapInput{font-size:20px}
+    @media (max-width: 900px){ body.focusMode .stageWrap{min-height:100vh} }
+
+  </style>
+</head>
+<body>
+<button id="toggleFocus" class="focusToggle" title="Ocultar o mostrar controles">Ocultar controles</button>
+<div class="app">
+<header>
+  <h1>Memoria rápida móvil <span class="small">salidas guardadas + doble Enter + estela completa + inputs en mapa final</span></h1>
+  <div class="controls">
+    <label>Dígitos totales<input id="digits" type="number" min="1" max="120" value="18"></label>
+    <label>Cifras por bloque<select id="groupSize"><option value="1" selected>1 cifra</option><option value="2">2 cifras</option><option value="3">3 cifras</option></select></label>
+    <label>Fase quieta ms<input id="stillTime" type="number" min="0" max="10000" step="50" value="900"></label>
+    <label>Movimiento ms<input id="duration" type="number" min="50" max="60000" step="50" value="1000"></label>
+    <label>Intervalo autoplay ms<input id="interval" type="number" min="100" max="120000" step="100" value="1800"></label>
+    <label>Tamaño<input id="fontSize" type="number" min="12" max="160" value="44"></label>
+    <label>Velocidad px/s<input id="speed" type="number" min="0" max="1200" value="180"></label>
+    <label>Dispersión<input id="spread" type="number" min="0" max="100" value="25"></label>
+    <label>Distancia inicial<input id="spacing" type="number" min="20" max="260" step="5" value="72"></label>
+    <label>Camino<select id="path"><option value="straight">recto</option><option value="wander" selected>aleatorio suave</option><option value="zigzag">zigzag</option><option value="bounce">rebote</option><option value="spiral">espiral</option><option value="rain">lluvia</option></select></label>
+    <label>Dirección<select id="direction"><option value="random" selected>random</option><option value="right">derecha</option><option value="left">izquierda</option><option value="up">arriba</option><option value="down">abajo</option><option value="out">desde centro hacia afuera</option><option value="in">hacia centro</option></select></label>
+    <label>Layout<select id="layout"><option value="grid" selected>grilla</option><option value="line">línea</option><option value="random">random pantalla</option><option value="clusters">racimos</option></select></label>
+    <label>Color<select id="colorMode"><option value="plain">negro/blanco</option><option value="digit" selected>color por número</option><option value="random">random</option><option value="redgreen">rojo/verde</option></select></label>
+    <label class="checkline"><input id="moveOn" type="checkbox" checked> mover</label>
+    <label class="checkline"><input id="darkStage" type="checkbox"> fondo oscuro</label>
+    <label class="checkline"><input id="trailOn" type="checkbox"> estela completa</label>
+    <button id="go" class="primary">GO!</button>
+    <button id="auto">Autoplay OFF</button>
+    <button id="stop" class="danger">Parar</button>
+    <button id="copySeq">Copiar secuencia</button>
+    <button id="placeMode">Marcar salidas OFF</button>
+    <button id="clearPoints">Borrar salidas</button>
+    <label class="wide">Config salidas<select id="pointPreset"></select></label>
+    <label class="wide">Nombre salidas<input id="pointPresetName" type="text" value="salidas 1" maxlength="40"></label>
+    <button id="savePoints">Guardar salidas</button>
+    <button id="deletePreset">Borrar config</button>
+    <span id="pointInfo" class="small">salidas: 0</span>
+  </div>
+</header>
+<main>
+  <section class="stageWrap" id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div id="mapAnswerLayer" class="mapAnswerLayer"></div>
+    <div class="hud"><span id="status">listo</span><span id="timer">0 ms</span></div>
+  </section>
+  <aside class="side">
+    <h2>Respuesta</h2>
+    <textarea id="answer" class="answer" placeholder="También podés escribir todo corrido acá..."></textarea>
+    <div class="row" style="margin:8px 0"><button id="check" class="primary">Check</button><button id="clear">Limpiar</button><button id="show">Mostrar última</button></div>
+    <div id="result" class="result">Sin humo: si la velocidad está alta y dura 1 segundo, esto ya es más memoria visual + tracking ocular que memoria quieta.</div>
+    <h2 style="margin-top:14px">Atajos</h2>
+    <div class="stats"><span class="pill"><span class="kbd">Espacio</span> GO / nuevo si acertaste</span><span class="pill"><span class="kbd">Enter</span> Check / segundo Enter = GO</span><span class="pill"><span class="kbd">Esc</span> parar</span></div>
+    <h2 style="margin-top:14px">Stats locales</h2>
+    <div id="stats" class="stats"></div>
+  </aside>
+</main>
+<footer>Orden válido: fase quieta inicial, lectura izquierda→derecha / arriba→abajo. Si activás “Marcar salidas”, hacés clics vacíos en la pantalla antes de GO; las salidas se guardan como configuraciones y los números recién se revelan al jugar desde esos puntos. “Cifras por bloque” junta los números en grupos de 1, 2 o 3. “Estela completa” dibuja todo el camino recorrido desde la salida hasta el final del movimiento. Al terminar el movimiento aparecen inputs en la posición final de cada bloque: clic elegís cuál contestar, al completar pasa al input más cercano según la posición inicial/de salida, Enter chequea y el segundo Enter hace GO. Al chequear, los bloques correctos quedan verdes y los incorrectos/faltantes rojos. Los números rebotan contra los bordes para no escaparse del canvas.</footer>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('stage'), ctx = canvas.getContext('2d'), wrap = $('stageWrap'), mapLayer = $('mapAnswerLayer');
+  const els = ['digits','groupSize','stillTime','duration','interval','fontSize','speed','spread','spacing','path','direction','layout','colorMode','moveOn','darkStage','trailOn'];
+  const colorDigit = {'0':'rgb(0,0,0)','1':'rgb(151,75,1)','2':'rgb(244,1,2)','3':'rgb(246,140,85)','4':'rgb(225,190,0)','5':'rgb(45,180,0)','6':'rgb(51,0,255)','7':'rgb(128,0,128)','8':'rgb(128,128,128)','9':'rgb(255,255,255)'};
+  let state = {particles:[], sequence:'', running:false, started:0, moveStarted:0, phase:'idle', raf:0, moveTimer:0, hideTimer:0, autoTimer:0, autoplay:false, count:0, lastExact:false, placing:false, manualPoints:[], currentPreset:'', lastCheckAt:0, checkedOnce:false, mapInputs:[], activeMapIndex:0, focusMode:false};
+  let stats = JSON.parse(localStorage.getItem('mm_stats') || '{"tries":0,"ok":0,"bestDigits":0,"last":""}');
+  function saveCfg(){ const cfg={}; for(const id of els){ const e=$(id); cfg[id]=e.type==='checkbox'?e.checked:e.value; } localStorage.setItem('mm_cfg', JSON.stringify(cfg)); }
+  function loadCfg(){ try{ const cfg=JSON.parse(localStorage.getItem('mm_cfg')||'{}'); for(const [id,val] of Object.entries(cfg)){ const e=$(id); if(!e) continue; if(e.type==='checkbox') e.checked=!!val; else e.value=val; } }catch{} applyStageTheme(); }
+  function updateStats(){ $('stats').innerHTML = `Intentos: <b>${stats.tries}</b><br>OK: <b>${stats.ok}</b><br>Mejor cantidad exacta: <b>${stats.bestDigits}</b><br>Última secuencia: <span class="kbd">${stats.last ? formatGroups(stats.last) : '-'}</span>`; }
+  function loadPointPresets(){
+    try{ return JSON.parse(localStorage.getItem('mm_point_presets') || '[]'); }
+    catch{ return []; }
+  }
+  function savePointPresets(list){ localStorage.setItem('mm_point_presets', JSON.stringify(list)); }
+  function syncDigitsFromPoints(){
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    if(state.manualPoints.length){ $('digits').value = clamp(state.manualPoints.length*g, 1, 120); saveCfg(); }
+  }
+  function refreshPresetSelect(){
+    const sel=$('pointPreset');
+    const presets=loadPointPresets();
+    sel.innerHTML='';
+    const none=document.createElement('option'); none.value=''; none.textContent='sin config / manual actual'; sel.appendChild(none);
+    presets.forEach(p=>{ const opt=document.createElement('option'); opt.value=p.id; opt.textContent=`${p.name} (${(p.points||[]).length})`; sel.appendChild(opt); });
+    if(state.currentPreset && presets.some(p=>p.id===state.currentPreset)) sel.value=state.currentPreset; else sel.value='';
+  }
+  function loadLastPoints(){
+    try{
+      const saved=JSON.parse(localStorage.getItem('mm_manual_points')||'[]');
+      if(Array.isArray(saved)) state.manualPoints=saved.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+      state.currentPreset=localStorage.getItem('mm_current_point_preset') || '';
+    }catch{ state.manualPoints=[]; state.currentPreset=''; }
+  }
+  function persistCurrentPoints(){
+    localStorage.setItem('mm_manual_points', JSON.stringify(state.manualPoints));
+    localStorage.setItem('mm_current_point_preset', state.currentPreset || '');
+  }
+  function saveCurrentPointsAsPreset(){
+    if(!state.manualPoints.length){ $('result').textContent='No hay salidas para guardar. Activá Marcar salidas y hacé clics en la pantalla.'; return; }
+    const name=($('pointPresetName').value || '').trim() || `salidas ${new Date().toLocaleTimeString()}`;
+    const presets=loadPointPresets();
+    let id=state.currentPreset;
+    let idx=presets.findIndex(p=>p.id===id);
+    if(idx<0){ id='p_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); idx=presets.length; presets.push({id,name,points:[]}); }
+    presets[idx]={id,name,points:state.manualPoints.map(p=>({x:Math.round(p.x),y:Math.round(p.y)})), updated:Date.now()};
+    state.currentPreset=id;
+    savePointPresets(presets); persistCurrentPoints(); refreshPresetSelect(); updatePointInfo();
+    $('result').textContent=`Guardé la config “${name}” con ${state.manualPoints.length} salidas. Dígitos totales: ${$('digits').value}.`;
+  }
+  function loadPresetById(id){
+    const presets=loadPointPresets();
+    const p=presets.find(x=>x.id===id);
+    if(!p) return;
+    state.currentPreset=id;
+    state.manualPoints=(p.points||[]).map(q=>({x:q.x,y:q.y}));
+    $('pointPresetName').value=p.name||'salidas';
+    persistCurrentPoints(); syncDigitsFromPoints(); updatePointInfo(); drawPlacement();
+    $('result').textContent=`Cargada “${p.name}”: ${state.manualPoints.length} salidas, ${$('digits').value} dígitos totales con bloques de ${$('groupSize').value}.`;
+  }
+  function deleteCurrentPreset(){
+    const id=$('pointPreset').value || state.currentPreset;
+    if(!id){ $('result').textContent='No hay config seleccionada para borrar.'; return; }
+    const presets=loadPointPresets();
+    const p=presets.find(x=>x.id===id);
+    savePointPresets(presets.filter(x=>x.id!==id));
+    if(state.currentPreset===id) state.currentPreset='';
+    persistCurrentPoints(); refreshPresetSelect();
+    $('result').textContent=`Borré la config ${p ? '“'+p.name+'”' : 'seleccionada'}. Los puntos actuales quedan en pantalla hasta que los borres o cargues otra.`;
+  }
+  function clearMapInputs(){
+    mapLayer.innerHTML='';
+    state.mapInputs=[];
+  }
+  function setMapInputWidths(){
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    const fs=+$('fontSize').value || 44;
+    const w=Math.max(42, Math.min(96, fs*.95 + g*16));
+    for(const input of state.mapInputs) input.style.width=w+'px';
+  }
+  function answerFromMapInputs(){
+    if(!state.mapInputs || !state.mapInputs.length) return '';
+    return state.mapInputs.map(inp=>inp.value.replace(/\D/g,'')).join('');
+  }
+  function getCurrentAnswer(){
+    if(state.mapInputs && state.mapInputs.length) return answerFromMapInputs();
+    return $('answer').value.replace(/\D/g,'');
+  }
+  function syncTextAnswerFromMap(){
+    if(state.mapInputs && state.mapInputs.length) $('answer').value=answerFromMapInputs();
+  }
+  function nearestUnfilledFrom(idx){
+    // Los inputs están ubicados en la posición FINAL, pero el salto automático
+    // debe seguir la cercanía del mapa INICIAL/de salida. Así el orden mental
+    // no depende de dónde terminaron después del movimiento.
+    if(!state.mapInputs || !state.mapInputs.length) return null;
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    const p=state.particles[idx];
+    const px = Number.isFinite(p.x0) ? p.x0 : p.x;
+    const py = Number.isFinite(p.y0) ? p.y0 : p.y;
+    let best=null, bestD=Infinity;
+    for(let i=0;i<state.mapInputs.length;i++){
+      if(i===idx) continue;
+      const inp=state.mapInputs[i];
+      if(inp.value.replace(/\D/g,'').length>=g) continue;
+      const q=state.particles[i];
+      const qx = Number.isFinite(q.x0) ? q.x0 : q.x;
+      const qy = Number.isFinite(q.y0) ? q.y0 : q.y;
+      const d=(px-qx)*(px-qx)+(py-qy)*(py-qy);
+      if(d<bestD){ bestD=d; best=i; }
+    }
+    if(best===null){
+      for(let i=0;i<state.mapInputs.length;i++){
+        if(i!==idx){ best=i; break; }
+      }
+    }
+    return best;
+  }
+  function focusMapInput(i){
+    if(!state.mapInputs || !state.mapInputs[i]) return;
+    state.activeMapIndex=i;
+    state.mapInputs[i].focus();
+    state.mapInputs[i].select();
+  }
+  function buildMapInputs(){
+    clearMapInputs();
+    if(!state.particles.length) return;
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    const w=wrap.clientWidth,h=wrap.clientHeight;
+    mapLayer.style.pointerEvents='auto';
+    state.particles.forEach((p,i)=>{
+      keepInsideCanvas(p,w,h);
+      const inp=document.createElement('input');
+      inp.className='mapInput';
+      inp.inputMode='numeric';
+      inp.autocomplete='off';
+      inp.maxLength=g;
+      inp.placeholder=String(i+1);
+      inp.dataset.index=String(i);
+      inp.style.left=p.x+'px';
+      inp.style.top=p.y+'px';
+      inp.title=`Bloque ${i+1}: escribí ${g} cifra${g>1?'s':''}`;
+      inp.addEventListener('focus',()=>{ state.activeMapIndex=i; });
+      inp.addEventListener('click',()=>{ state.activeMapIndex=i; inp.select(); });
+      inp.addEventListener('input',()=>{
+        inp.value=inp.value.replace(/\D/g,'').slice(0,g);
+        inp.classList.remove('good','bad','emptyBad');
+        state.checkedOnce=false;
+        syncTextAnswerFromMap();
+        if(inp.value.length>=g){
+          const nx=nearestUnfilledFrom(i);
+          if(nx!==null && state.mapInputs[nx]) focusMapInput(nx);
+        }
+      });
+      inp.addEventListener('keydown',e=>{
+        if(e.key==='Enter' && !e.shiftKey){
+          e.preventDefault(); e.stopPropagation();
+          if(state.checkedOnce) go(); else check();
+        }
+        if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); stop(true); }
+      });
+      mapLayer.appendChild(inp);
+      state.mapInputs.push(inp);
+    });
+    setMapInputWidths();
+    $('answer').blur();
+    setTimeout(()=>focusMapInput(0),30);
+  }
+  function colorMapInputsAfterCheck(){
+    if(!state.mapInputs || !state.mapInputs.length) return;
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    for(let i=0;i<state.mapInputs.length;i++){
+      const inp=state.mapInputs[i];
+      const val=inp.value.replace(/\D/g,'');
+      inp.classList.remove('good','bad','emptyBad');
+      if(val === state.particles[i].ch) inp.classList.add('good');
+      else inp.classList.add(val ? 'bad' : 'emptyBad','bad');
+    }
+  }
+  function fitCanvas(){ const r=wrap.getBoundingClientRect(); const dpr=Math.max(1, Math.min(2, window.devicePixelRatio||1)); canvas.width=Math.floor(r.width*dpr); canvas.height=Math.floor(r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); }
+  function rand(a,b){ return a + Math.random()*(b-a); } function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function sortedManualPoints(){
+    // Orden visual humano: filas por Y y dentro de cada fila izquierda→derecha.
+    const fs=+$('fontSize').value || 44;
+    const rowTol=Math.max(22, fs*.75);
+    const pts=state.manualPoints.map((p,i)=>({...p,i})).sort((a,b)=>a.y-b.y || a.x-b.x);
+    const rows=[];
+    for(const p of pts){
+      let row=rows.find(r=>Math.abs(r.y-p.y)<rowTol);
+      if(!row){ row={y:p.y, pts:[]}; rows.push(row); }
+      row.pts.push(p); row.y=(row.y*(row.pts.length-1)+p.y)/row.pts.length;
+    }
+    return rows.sort((a,b)=>a.y-b.y).flatMap(r=>r.pts.sort((a,b)=>a.x-b.x));
+  }
+  function updatePointInfo(){
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    const d=state.manualPoints.length*g;
+    if(state.manualPoints.length) $('digits').value = clamp(d,1,120);
+    const presetName=state.currentPreset ? (($('pointPreset').selectedOptions[0] && $('pointPreset').selectedOptions[0].textContent) || 'config guardada') : 'manual actual';
+    $('pointInfo').textContent = `salidas: ${state.manualPoints.length} · dígitos totales: ${state.manualPoints.length ? $('digits').value : $('digits').value} · ${presetName}`;
+  }
+  function drawPlacement(){
+    clearMapInputs();
+    fitCanvas(); const w=wrap.clientWidth,h=wrap.clientHeight; ctx.clearRect(0,0,w,h);
+    const pts=sortedManualPoints();
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      ctx.beginPath(); ctx.arc(p.x,p.y,10,0,Math.PI*2);
+      ctx.fillStyle=$('darkStage').checked?'rgba(128,183,255,.22)':'rgba(45,112,214,.18)'; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle=$('darkStage').checked?'rgba(238,243,255,.75)':'rgba(29,79,158,.75)'; ctx.stroke();
+      ctx.font='700 11px Arial, sans-serif'; ctx.fillStyle=$('darkStage').checked?'rgba(238,243,255,.9)':'rgba(17,24,39,.82)';
+      ctx.fillText(String(i+1),p.x,p.y);
+    }
+    if(state.placing){
+      ctx.font='700 15px Arial, sans-serif'; ctx.fillStyle=$('darkStage').checked?'rgba(238,243,255,.72)':'rgba(17,24,39,.62)';
+      ctx.fillText('clic para agregar salidas vacías · GO revela los números', w/2, 28);
+    }
+    ctx.restore();
+  }
+  function genSeq(n){ let s=''; for(let i=0;i<n;i++) s += Math.floor(Math.random()*10); return s; }
+  function splitGroups(seq){
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    const out=[];
+    for(let i=0;i<seq.length;i+=g) out.push(seq.slice(i,i+g));
+    return out;
+  }
+  function formatGroups(seq){ return splitGroups(seq).join(' '); }
+  function basePositions(n,w,h,layout,fs){
+    const spacing=clamp(parseFloat($('spacing').value)||72,20,260);
+    const margin=Math.max(24,fs*.9), pts=[];
+    if(layout==='line'){
+      const gap=Math.max(spacing, fs*.9); const total=gap*(n-1); const usable=w-margin*2; const scale=total>usable && total>0 ? usable/total : 1; const realGap=gap*scale; const y=h/2;
+      for(let i=0;i<n;i++) pts.push({x:w/2-(realGap*(n-1))/2+i*realGap,y});
+    } else if(layout==='random'){
+      for(let i=0;i<n;i++) pts.push({x:rand(margin,w-margin),y:rand(margin,h-margin)});
+    } else if(layout==='clusters'){
+      const clusters=Math.max(2, Math.ceil(n/6)); const centers=Array.from({length:clusters},()=>({x:rand(w*.18,w*.82),y:rand(h*.2,h*.8)}));
+      for(let i=0;i<n;i++){ const c=centers[i%clusters]; const slot=Math.floor(i/clusters); const a=(slot%6)/6*Math.PI*2 + rand(-.18,.18); const r=spacing*(.55+Math.floor(slot/6)*.55); pts.push({x:clamp(c.x+Math.cos(a)*r+rand(-spacing*.12,spacing*.12),margin,w-margin),y:clamp(c.y+Math.sin(a)*r+rand(-spacing*.12,spacing*.12),margin,h-margin)}); }
+    } else {
+      const cols=Math.ceil(Math.sqrt(n*1.35)); const rows=Math.ceil(n/cols);
+      const maxGapX=(w-margin*2)/Math.max(1,cols-1), maxGapY=(h-margin*2)/Math.max(1,rows-1);
+      const gapX=Math.min(spacing, maxGapX), gapY=Math.min(spacing, maxGapY);
+      const startX=w/2-gapX*(cols-1)/2, startY=h/2-gapY*(rows-1)/2;
+      for(let i=0;i<n;i++) pts.push({x:startX+(i%cols)*gapX,y:startY+Math.floor(i/cols)*gapY});
+    }
+    return pts;
+  }
+  function angleFor(dir,x,y,w,h){
+    if(dir==='right') return 0; if(dir==='left') return Math.PI; if(dir==='up') return -Math.PI/2; if(dir==='down') return Math.PI/2;
+    if(dir==='out') return Math.atan2(y-h/2,x-w/2); if(dir==='in') return Math.atan2(h/2-y,w/2-x);
+    return rand(0,Math.PI*2);
+  }
+  function makeParticles(seq){
+    fitCanvas(); const w=wrap.clientWidth,h=wrap.clientHeight, fs=+$('fontSize').value, sp=+$('spread').value; // sp = jitter fino, spacing = separación base inicial
+    const groups=splitGroups(seq);
+    const manual=sortedManualPoints();
+    const pts=manual.length ? manual.slice(0, groups.length) : basePositions(groups.length,w,h,$('layout').value,fs); const speed=+$('speed').value;
+    return groups.map((ch,i)=>{
+      let p=pts[i]; p={x:p.x+rand(-sp,sp),y:p.y+rand(-sp,sp)}; const a=angleFor($('direction').value,p.x,p.y,w,h);
+      return {ch, x:p.x, y:p.y, x0:p.x, y0:p.y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, a, phase:rand(0,Math.PI*2), spin:rand(-2.2,2.2), color:pickColor(ch), born:performance.now(), trail:[{x:p.x,y:p.y}]};
+    });
+  }
+  function pickColor(ch){
+    const mode=$('colorMode').value;
+    if(mode==='digit') return colorDigit[String(ch)[0]] || '#111';
+    if(mode==='random') return `hsl(${Math.floor(rand(0,360))} 85% 48%)`;
+    if(mode==='redgreen') return Math.random()<.5?'#d71920':'#0a9b36';
+    return $('darkStage').checked?'#eef3ff':'#111827';
+  }
+  function drawOrderGuide(){
+    if(state.phase !== 'still') return;
+    const fs=+$('fontSize').value;
+    ctx.save();
+    ctx.font=`700 ${Math.max(10, Math.round(fs*.28))}px Arial, sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(let i=0;i<state.particles.length;i++){
+      const p=state.particles[i];
+      ctx.fillStyle=$('darkStage').checked?'rgba(238,243,255,.68)':'rgba(17,24,39,.58)';
+      ctx.fillText(String(i+1), p.x, p.y - fs*.82);
+    }
+    ctx.restore();
+  }
+  function drawStartDots(){
+    if(state.phase !== 'move') return;
+    ctx.save();
+    for(const p of state.particles){
+      ctx.beginPath(); ctx.arc(p.x0,p.y0,3.2,0,Math.PI*2);
+      ctx.fillStyle=$('darkStage').checked?'rgba(238,243,255,.28)':'rgba(17,24,39,.25)'; ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawTrails(){
+    ctx.save();
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    for(const p of state.particles){
+      if(!p.trail || p.trail.length<2) continue;
+
+      // Estela completa: no se recorta. Dibuja todo el camino acumulado.
+      ctx.beginPath();
+      ctx.moveTo(p.trail[0].x,p.trail[0].y);
+      for(let i=1;i<p.trail.length;i++){
+        ctx.lineTo(p.trail[i].x,p.trail[i].y);
+      }
+      ctx.lineWidth=3;
+      ctx.strokeStyle=$('darkStage').checked ? 'rgba(128,183,255,.34)' : 'rgba(45,112,214,.30)';
+      ctx.stroke();
+
+      // Puntito inicial para que se entienda de dónde arrancó.
+      ctx.beginPath();
+      ctx.arc(p.trail[0].x,p.trail[0].y,2.8,0,Math.PI*2);
+      ctx.fillStyle=$('darkStage').checked ? 'rgba(238,243,255,.45)' : 'rgba(17,24,39,.35)';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  function particleBounds(p,w,h){
+    const fs=+$('fontSize').value || 44;
+    const textW=Math.max(fs*.65, ctx.measureText ? ctx.measureText(p.ch).width : fs);
+    return {mx:textW/2+6, my:fs*.58+6};
+  }
+  function keepInsideCanvas(p,w,h){
+    const b=particleBounds(p,w,h);
+    let hitX=false, hitY=false;
+    if(p.x < b.mx){ p.x=b.mx; hitX=true; }
+    if(p.x > w-b.mx){ p.x=w-b.mx; hitX=true; }
+    if(p.y < b.my){ p.y=b.my; hitY=true; }
+    if(p.y > h-b.my){ p.y=h-b.my; hitY=true; }
+    if(hitX){ p.vx = -p.vx; p.a = Math.PI - p.a; }
+    if(hitY){ p.vy = -p.vy; p.a = -p.a; }
+  }
+  function drawParticleText(p, fill){
+    ctx.lineWidth=3;
+    ctx.strokeStyle=$('darkStage').checked?'rgba(0,0,0,.62)':'rgba(255,255,255,.82)';
+    ctx.strokeText(p.ch,p.x,p.y);
+    ctx.fillStyle=fill;
+    ctx.fillText(p.ch,p.x,p.y);
+  }
+  function drawFeedbackOnCanvas(ans){
+    fitCanvas();
+    const w=wrap.clientWidth,h=wrap.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`900 ${+$('fontSize').value}px Arial, sans-serif`;
+    if($('trailOn').checked) drawTrails();
+    drawStartDots();
+    const g=clamp(parseInt($('groupSize').value)||1,1,3);
+    for(let i=0;i<state.particles.length;i++){
+      const p=state.particles[i];
+      keepInsideCanvas(p,w,h);
+      const part=ans.slice(i*g, i*g+g);
+      const good=part===p.ch;
+      drawParticleText(p, good ? '#15b84a' : '#e11d48');
+      ctx.save();
+      ctx.font='800 13px Arial, sans-serif';
+      ctx.fillStyle=good ? '#15b84a' : '#e11d48';
+      ctx.fillText(good ? '✓' : '×', p.x, p.y-(+$('fontSize').value*.85));
+      ctx.restore();
+    }
+  }
+  function draw(now){
+    fitCanvas(); const w=wrap.clientWidth,h=wrap.clientHeight; ctx.clearRect(0,0,w,h); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font=`900 ${+$('fontSize').value}px Arial, sans-serif`;
+    const elapsed=(now-state.started); const movingElapsed=Math.max(0, now-state.moveStarted);
+    $('timer').textContent = state.running ? (state.phase==='still' ? `quieto ${Math.round(elapsed)} ms` : `mov ${Math.round(movingElapsed)} ms`) : '0 ms';
+    const dt=1/60, path=$('path').value, moving=$('moveOn').checked && state.phase==='move';
+    drawStartDots();
+    const trailOn = $('trailOn').checked;
+    if(trailOn && state.phase==='move') drawTrails();
+    for(const p of state.particles){
+      if(moving){
+        if(path==='straight'){ p.x += p.vx*dt; p.y += p.vy*dt; }
+        else if(path==='wander'){ p.a += Math.sin((now-p.born)/230+p.phase)*0.025 + rand(-.018,.018); const s=Math.hypot(p.vx,p.vy); p.vx=Math.cos(p.a)*s; p.vy=Math.sin(p.a)*s; p.x+=p.vx*dt; p.y+=p.vy*dt; }
+        else if(path==='zigzag'){ const s=Math.hypot(p.vx,p.vy); const side=Math.sin((now-p.born)/70+p.phase)*s*.55; p.x += (Math.cos(p.a)*s + Math.cos(p.a+Math.PI/2)*side)*dt; p.y += (Math.sin(p.a)*s + Math.sin(p.a+Math.PI/2)*side)*dt; }
+        else if(path==='bounce'){ p.x+=p.vx*dt; p.y+=p.vy*dt; }
+        else if(path==='spiral'){ const t=(now-p.born)/1000; const r=t*Math.hypot(p.vx,p.vy)*.35; p.x=p.x0+Math.cos(p.a+t*4*p.spin)*r; p.y=p.y0+Math.sin(p.a+t*4*p.spin)*r; }
+        else if(path==='rain'){ p.y+=Math.abs(p.vy||+$('speed').value)*dt; p.x+=Math.sin((now-p.born)/130+p.phase)*(+$('speed').value)*.18*dt; }
+        keepInsideCanvas(p,w,h);
+      }
+      if(trailOn && state.phase==='move'){
+        p.trail.push({x:p.x,y:p.y});
+              } else if(!trailOn && p.trail && p.trail.length){
+        p.trail.length=0;
+      }
+      drawParticleText(p, p.color);
+    }
+    drawOrderGuide();
+    if(state.running) state.raf=requestAnimationFrame(draw);
+  }
+  function startMovePhase(){
+    if(!state.running) return;
+    state.phase='move'; state.moveStarted=performance.now();
+    $('status').textContent='movimiento: seguí el caos, pero el orden válido es el inicial';
+    state.hideTimer=setTimeout(()=>{
+      state.running=false; state.phase='hidden'; cancelAnimationFrame(state.raf);
+      ctx.clearRect(0,0,wrap.clientWidth,wrap.clientHeight);
+      if($('trailOn').checked) drawTrails();
+      buildMapInputs();
+      $('status').textContent='respondé en el mapa final: clic en un cuadro, escribí, Enter chequea';
+      $('timer').textContent=$('duration').value+' ms mov';
+    }, Math.max(20,+$('duration').value));
+  }
+  function go(){
+    clearMapInputs();
+    stop(false); saveCfg();
+    const groupSize=clamp(parseInt($('groupSize').value)||1,1,3);
+    const manualCount=state.manualPoints.length;
+    const n = manualCount ? clamp(manualCount*groupSize,1,120) : clamp(parseInt($('digits').value)||1,1,120);
+    state.lastExact=false; state.checkedOnce=false; state.sequence=genSeq(n); stats.last=state.sequence; localStorage.setItem('mm_stats',JSON.stringify(stats)); updateStats();
+    state.particles=makeParticles(state.sequence); state.running=true; state.phase='still'; state.started=performance.now(); state.moveStarted=0;
+    const origen = manualCount ? `salidas manuales (${manualCount} puntos vacíos)` : 'layout automático';
+    $('status').textContent=`fase quieta #${++state.count}: ${origen} · orden visual inicial`; $('answer').value='';
+    $('result').textContent= manualCount
+      ? 'Usaste puntos de salida manuales. Antes de GO eran vacíos; ahora los números se revelan y después se mueven. Orden: filas de arriba hacia abajo, dentro de cada fila izquierda→derecha.'
+      : 'Primero memorizá el orden inicial. Bloques: '+formatGroups(state.sequence)+'. Si lo ves apretado, subí Distancia inicial.';
+    state.raf=requestAnimationFrame(draw);
+    state.moveTimer=setTimeout(startMovePhase, Math.max(0,+$('stillTime').value));
+  }
+  function stop(resetAuto=true){ clearMapInputs(); clearTimeout(state.moveTimer); clearTimeout(state.hideTimer); cancelAnimationFrame(state.raf); state.running=false; state.phase='idle'; $('status').textContent='parado'; if(resetAuto && state.autoplay){ toggleAuto(false); } drawPlacement(); }
+  function check(){
+    const ans=getCurrentAnswer();
+    state.lastCheckAt = performance.now();
+    state.checkedOnce = true;
+    if(!state.sequence){ $('result').textContent='Primero mandá GO.'; $('answer').blur(); return; }
+    let ok=0, marks='';
+    const max=Math.max(ans.length,state.sequence.length);
+    for(let i=0;i<max;i++){ const good=ans[i]===state.sequence[i]; if(good) ok++; marks += good?'✓':'×'; }
+    const exact=ans===state.sequence;
+    state.lastExact=exact;
+    stats.tries++;
+    if(exact){ stats.ok++; stats.bestDigits=Math.max(stats.bestDigits,state.sequence.length); }
+    localStorage.setItem('mm_stats',JSON.stringify(stats)); updateStats();
+    $('result').innerHTML = exact
+      ? `✅ Perfecto. ${state.sequence.length}/${state.sequence.length} — apretá Espacio o Enter para lanzar otra.`
+      : `❌ ${ok}/${state.sequence.length} en posición.
+Correcta: ${formatGroups(state.sequence)}
+Tuya:      ${ans || '-'}
+           ${marks}`;
+    drawFeedbackOnCanvas(ans);
+    colorMapInputsAfterCheck();
+    // Al terminar de responder, el textarea pierde foco: así Espacio/Enter vuelven a ser comandos del juego.
+    if(state.mapInputs && state.mapInputs.length){ focusMapInput(state.activeMapIndex || 0); } else { $('answer').blur(); }
+    $('status').textContent = exact ? 'correcto: Espacio o Enter lanza otra vez' : 'revisado: corregí o mandá GO para otra ronda';
+  }
+  function autoCheckIfComplete(){
+    if(!state.sequence || state.lastExact) return;
+    const ans=getCurrentAnswer();
+    if(ans.length >= state.sequence.length && ans === state.sequence){ check(); }
+  }
+  function applyFocusMode(){
+    document.body.classList.toggle('focusMode', !!state.focusMode);
+    $('toggleFocus').textContent = state.focusMode ? 'Mostrar controles' : 'Ocultar controles';
+    localStorage.setItem('mm_focusMode', state.focusMode ? '1' : '0');
+    setTimeout(()=>{ fitCanvas(); if(!state.running) drawPlacement(); else draw(); }, 20);
+  }
+  function toggleFocusMode(force){
+    state.focusMode = typeof force==='boolean' ? force : !state.focusMode;
+    applyFocusMode();
+  }
+
+  function toggleAuto(force){ state.autoplay = typeof force==='boolean'?force:!state.autoplay; $('auto').textContent=state.autoplay?'Autoplay ON':'Autoplay OFF'; clearInterval(state.autoTimer); if(state.autoplay){ go(); state.autoTimer=setInterval(go, Math.max(100,+$('interval').value)); } }
+  function applyStageTheme(){ document.body.classList.toggle('darkStage',$('darkStage').checked); }
+  $('go').onclick=go; $('stop').onclick=()=>stop(true); $('check').onclick=check; $('clear').onclick=()=>{ $('answer').value=''; if(state.mapInputs){ for(const inp of state.mapInputs){ inp.value=''; inp.classList.remove('good','bad','emptyBad'); } focusMapInput(0); } state.lastExact=false; state.checkedOnce=false; if(!state.mapInputs.length) $('answer').focus();}; $('show').onclick=()=>{$('result').textContent='Última: '+(state.sequence?formatGroups(state.sequence):'-');}; $('copySeq').onclick=async()=>{ try{ await navigator.clipboard.writeText(state.sequence||''); $('result').textContent='Copiada: '+(state.sequence?formatGroups(state.sequence):'-'); }catch{$('result').textContent='No pude copiar, pero es: '+(state.sequence?formatGroups(state.sequence):'-');} };
+  $('toggleFocus').onclick=()=>toggleFocusMode();
+  $('placeMode').onclick=()=>{ state.placing=!state.placing; $('placeMode').textContent=state.placing?'Marcar salidas ON':'Marcar salidas OFF'; wrap.classList.toggle('placing', state.placing); $('status').textContent=state.placing?'modo salidas: clics vacíos antes de GO':'listo'; drawPlacement(); };
+  $('clearPoints').onclick=()=>{ state.manualPoints=[]; state.currentPreset=''; persistCurrentPoints(); refreshPresetSelect(); updatePointInfo(); drawPlacement(); $('result').textContent='Salidas manuales borradas. Si no marcás puntos, vuelve el layout automático.'; };
+  $('savePoints').onclick=saveCurrentPointsAsPreset;
+  $('deletePreset').onclick=deleteCurrentPreset;
+  $('pointPreset').onchange=()=>{ const id=$('pointPreset').value; if(id) loadPresetById(id); else { state.currentPreset=''; persistCurrentPoints(); updatePointInfo(); } };
+  $('pointPresetName').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); saveCurrentPointsAsPreset(); } });
+  canvas.addEventListener('click',e=>{
+    if(!state.placing || state.running) return;
+    const r=canvas.getBoundingClientRect();
+    state.manualPoints.push({x:e.clientX-r.left, y:e.clientY-r.top});
+    state.currentPreset=''; persistCurrentPoints(); refreshPresetSelect(); syncDigitsFromPoints(); updatePointInfo(); drawPlacement();
+  });
+  canvas.addEventListener('contextmenu',e=>{
+    if(!state.placing) return;
+    e.preventDefault();
+    state.manualPoints.pop(); state.currentPreset=''; persistCurrentPoints(); refreshPresetSelect(); syncDigitsFromPoints(); updatePointInfo(); drawPlacement();
+  });
+  $('answer').addEventListener('input',()=>{ state.checkedOnce=false; autoCheckIfComplete(); });
+  $('auto').onclick=()=>toggleAuto();
+  for(const id of els){ $(id).addEventListener('change',()=>{ saveCfg(); if(id==='darkStage') applyStageTheme(); if(id==='groupSize'){ syncDigitsFromPoints(); updatePointInfo(); } if(!state.running) drawPlacement(); }); }
+  window.addEventListener('resize',()=>{ fitCanvas(); if(!state.running) drawPlacement(); });
+  window.addEventListener('keydown',e=>{
+    const isAnswerFocused = document.activeElement === $('answer');
+    const answerEmpty = getCurrentAnswer().length === 0;
+    const wantsLaunch = e.code==='Space' || (e.key==='Enter' && !e.shiftKey);
+
+    // Si acertaste, Espacio o Enter lanzan otra ronda.
+    if(state.lastExact && wantsLaunch){ e.preventDefault(); go(); return; }
+
+    // Espacio funciona como GO siempre que no esté escribiéndose dentro del textarea.
+    if(e.code==='Space' && !isAnswerFocused){ e.preventDefault(); go(); return; }
+
+    // Flujo doble Enter:
+    // 1er Enter con respuesta escrita = Check.
+    // 2do Enter después del check = Play, sin esperar 1 segundo.
+    // Si editás la respuesta, vuelve a contar como respuesta nueva y Enter chequea otra vez.
+    if(e.key==='Enter' && !e.shiftKey){
+      e.preventDefault();
+      if(answerEmpty || state.checkedOnce){ go(); }
+      else { check(); }
+      return;
+    }
+
+    if(e.key==='Escape'){
+      if(state.focusMode){ e.preventDefault(); toggleFocusMode(false); return; }
+      stop(true);
+    }
+  });
+  loadCfg();
+  state.focusMode = localStorage.getItem('mm_focusMode') === '1';
+  loadLastPoints();
+  fitCanvas();
+  applyFocusMode();
+  updateStats(); refreshPresetSelect(); syncDigitsFromPoints(); updatePointInfo(); drawPlacement();
+})();
+</script>
+</body>
+</html>
